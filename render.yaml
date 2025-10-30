@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: interstellar-proxy
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: "echo Build step not required"
+    startCommand: "node proxy.js"
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 3000
