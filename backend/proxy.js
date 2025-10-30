@@ -1,64 +1,37 @@
-// backend/proxy.js
+// proxy.js
 import express from "express";
-import { createProxyMiddleware } from "http-proxy-middleware";
-import morgan from "morgan";
-import axios from "axios";
+import fetch from "node-fetch";
+import cors from "cors";
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 
-// 認証ミドルウェア
-app.use(async (req, res, next) => {
-  const token = req.headers["x-api-key"];
-  if (token !== process.env.PROXY_KEY) {
-    return res.status(401).json({ error: "Unauthorized" });
+// 基本的なCORS設定
+app.use(cors());
+app.use(express.json());
+
+// シンプルなリバースプロキシ
+app.use("/proxy", async (req, res) => {
+  const target = req.query.url;
+  if (!target) return res.status(400).send("Missing ?url parameter");
+
+  try {
+    const response = await fetch(target, {
+      method: req.method,
+      headers: { ...req.headers, host: undefined },
+      body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
+    });
+
+    res.status(response.status);
+    response.headers.forEach((v, k) => res.setHeader(k, v));
+    const data = await response.text();
+    res.send(data);
+  } catch (err) {
+    console.error("Proxy error:", err);
+    res.status(500).send("Proxy error: " + err.message);
   }
-  next();
 });
 
-// ログ
-app.use(morgan("dev"));
-
-// キャッシュサーバーに問い合わせ（Python連携）
-async function checkCache(url) {
-  try {
-    const resp = await axios.get(`http://localhost:5050/cache?url=${encodeURIComponent(url)}`);
-    return resp.data || null;
-  } catch {
-    return null;
-  }
-}
-
-async function saveCache(url, data) {
-  try {
-    await axios.post("http://localhost:5050/cache", { url, data });
-  } catch {}
-}
-
-// プロキシ本体
-app.use("/proxy", async (req, res, next) => {
-  const target = req.query.target;
-  if (!target) return res.status(400).json({ error: "No target" });
-
-  const cached = await checkCache(target);
-  if (cached) return res.send(cached);
-
-  const proxy = createProxyMiddleware({
-    target,
-    changeOrigin: true,
-    selfHandleResponse: true,
-    onProxyRes: async (proxyRes, req, res) => {
-      let body = "";
-      proxyRes.on("data", chunk => body += chunk.toString());
-      proxyRes.on("end", async () => {
-        await saveCache(target, body);
-        res.status(proxyRes.statusCode).send(body);
-      });
-    },
-    onError: (err, req, res) => res.status(502).json({ error: "Proxy Error", detail: err.message })
-  });
-
-  proxy(req, res, next);
+app.listen(PORT, () => {
+  console.log(`🌐 Proxy server running on http://localhost:${PORT}`);
 });
-
-app.listen(PORT, () => console.log(`🚀 Node Proxy running on ${PORT}`));
