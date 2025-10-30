@@ -1,10 +1,11 @@
 {
-  "name": "interstellar-proxy",
+  "name": "proxy2",
   "version": "1.0.0",
   "type": "module",
+  "description": "Node.js proxy server compatible with Render",
+  "main": "proxy.js",
   "scripts": {
     "start": "node proxy.js"
-    "buildCommand": "echo Build step not required"
   },
   "dependencies": {
     "express": "^4.19.0",
