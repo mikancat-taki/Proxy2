@@ -1,64 +1,64 @@
-// simple reverse proxy for Interstellar frontend to use as backend
-const express = require('express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
-const morgan = require('morgan');
+// backend/proxy.js
+import express from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
+import morgan from "morgan";
+import axios from "axios";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-/**
- * target: 実際にアクセスしたい外部ホスト（デフォルトは外部へそのまま転送するワイルドカード的挙動）
- * 注意: セキュリティのため、公開時はターゲットホストのホワイトリスト化や認証を必ず実装してください。
- */
-const PROXY_OPTIONS = {
-  changeOrigin: true,
-  // preserveHostHdr: true, // 必要に応じて
-  onProxyReq(proxyReq, req, res) {
-    // 必要ならヘッダ加工
-    proxyReq.setHeader('x-forwarded-by', 'interstellar-proxy');
-  },
-  onError(err, req, res) {
-    res.status(502).json({ error: 'proxy_error', details: err.message });
-  },
-  logLevel: 'warn'
-};
+// 認証ミドルウェア
+app.use(async (req, res, next) => {
+  const token = req.headers["x-api-key"];
+  if (token !== process.env.PROXY_KEY) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+});
 
 // ログ
-app.use(morgan('combined'));
+app.use(morgan("dev"));
 
-// シンプルな API 用ルート（例: /api/* をそのまま外部へ転送）
-app.use('/api/*', (req, res, next) => {
-  // ここで認証・レート制限など挟めます
-  next();
-}, createProxyMiddleware({
-  ...PROXY_OPTIONS,
-  // 外部ホストへ転送する。パラメータにより動的に変えてもよい。
-  target: 'https://example.com',
-  pathRewrite: (path, req) => {
-    // /api/foo -> /foo に書き換える例
-    return path.replace(/^\/api/, '');
+// キャッシュサーバーに問い合わせ（Python連携）
+async function checkCache(url) {
+  try {
+    const resp = await axios.get(`http://localhost:5050/cache?url=${encodeURIComponent(url)}`);
+    return resp.data || null;
+  } catch {
+    return null;
   }
-}));
+}
 
-// 汎用プロキシルート: クエリで target を指定する（公開時は危険なのでホワイトリスト化推奨）
-app.use('/proxy', createProxyMiddleware({
-  ...PROXY_OPTIONS,
-  router: (req) => {
-    const target = req.query.target;
-    // サンプル保護: query に無ければエラー
-    if (!target) return 'https://example.com';
-    return target;
-  },
-  onProxyReq(proxyReq, req, res) {
-    proxyReq.setHeader('x-forwarded-by', 'interstellar-proxy');
-  }
-}));
+async function saveCache(url, data) {
+  try {
+    await axios.post("http://localhost:5050/cache", { url, data });
+  } catch {}
+}
 
-// ルート確認
-app.get('/', (req, res) => {
-  res.send('Interstellar-compatible proxy running');
+// プロキシ本体
+app.use("/proxy", async (req, res, next) => {
+  const target = req.query.target;
+  if (!target) return res.status(400).json({ error: "No target" });
+
+  const cached = await checkCache(target);
+  if (cached) return res.send(cached);
+
+  const proxy = createProxyMiddleware({
+    target,
+    changeOrigin: true,
+    selfHandleResponse: true,
+    onProxyRes: async (proxyRes, req, res) => {
+      let body = "";
+      proxyRes.on("data", chunk => body += chunk.toString());
+      proxyRes.on("end", async () => {
+        await saveCache(target, body);
+        res.status(proxyRes.statusCode).send(body);
+      });
+    },
+    onError: (err, req, res) => res.status(502).json({ error: "Proxy Error", detail: err.message })
+  });
+
+  proxy(req, res, next);
 });
 
-app.listen(PORT, () => {
-  console.log(`Proxy listening on ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Node Proxy running on ${PORT}`));
