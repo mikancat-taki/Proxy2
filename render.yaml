@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: interstellar-proxy
+    name: proxy2
     env: node
     region: singapore
     plan: free
@@ -9,4 +9,4 @@ services:
     autoDeploy: true
     envVars:
       - key: PORT
-        value: 3000
+        value: "3000"
