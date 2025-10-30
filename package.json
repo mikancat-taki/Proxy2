@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "node proxy.js"
+    "buildCommand": "echo Build step not required"
   },
   "dependencies": {
     "express": "^4.19.0",
