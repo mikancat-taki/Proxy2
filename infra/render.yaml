@@ -1,0 +1,39 @@
+services:
+- type: web_service
+name: node-proxy
+env: docker
+dockerfilePath: services/node-proxy/Dockerfile
+branch: main
+plan: free
+envVars:
+- key: PROXY_KEY
+fromDatabase: null
+- key: RATE_URL
+value: http://java-rate:6060/check
+- type: background_worker
+name: python-cache
+env: docker
+dockerfilePath: services/python-cache/Dockerfile
+branch: main
+- type: background_worker
+name: java-rate
+env: docker
+dockerfilePath: services/java-rate/Dockerfile
+branch: main
+- type: web_service
+name: go-proxy
+env: docker
+dockerfilePath: services/go-proxy/Dockerfile
+branch: main
+- type: web_service
+name: rust-rewrite
+env: docker
+dockerfilePath: services/rust-rewrite/Dockerfile
+branch: main
+- type: web_service
+name: cpp-health
+env: docker
+dockerfilePath: services/cpp-health/Dockerfile
+branch: main
+databases: []
+staticSites: []
