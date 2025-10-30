@@ -4,8 +4,8 @@ services:
     env: node
     region: singapore
     plan: free
-    buildCommand: "echo Build step not required"
-    startCommand: "node proxy.js"
+    buildCommand: echo Build step not required
+    startCommand: node proxy.js
     autoDeploy: true
     envVars:
       - key: PORT
