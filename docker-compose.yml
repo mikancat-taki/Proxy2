@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+node-proxy:
+build: ./services/node-proxy
+ports: ["8080:8080"]
+environment:
+- PROXY_KEY=${PROXY_KEY}
+- RATE_URL=http://java-rate:6060/check
+depends_on:
+- python-cache
+- java-rate
+python-cache:
+build: ./services/python-cache
+ports: ["5050:5050"]
+java-rate:
+build: ./services/java-rate
+ports: ["6060:6060"]
+go-proxy:
+build: ./services/go-proxy
+ports: ["7070:7070"]
+rust-rewrite:
+build: ./services/rust-rewrite
+ports: ["8081:8081"]
+cpp-health:
+build: ./services/cpp-health
+ports: ["8082:8082"]
